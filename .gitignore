@@ -1,0 +1,50 @@
+# ---------- Dependencies ----------
+node_modules/
+
+# ---------- Build output ----------
+dist/
+dist-ssr/
+dev-dist/
+*.tsbuildinfo
+.vite/
+
+# ---------- Secrets (NEVER commit) ----------
+.env
+.env.*
+!.env.example
+*.local
+
+# ---------- Android / Capacitor build files ----------
+android/app/build/
+android/build/
+android/.gradle/
+android/.idea/
+android/local.properties
+android/app/release/
+*.apk
+*.aab
+*.keystore
+*.jks
+
+# ---------- Logs ----------
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# ---------- OS / editor ----------
+.DS_Store
+Thumbs.db
+.vscode/*
+!.vscode/extensions.json
+.idea/
+*.suo
+*.sw?
+
+# ---------- Vercel ----------
+.vercel/
+
+# ---------- Sample statements (contain real names/amounts) ----------
+samples/

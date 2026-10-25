@@ -1,0 +1,6 @@
+{
+  "appId": "com.hisaabkhata.app",
+  "appName": "Hisaab Khata",
+  "webDir": "dist",
+  "android": { "backgroundColor": "#f4f1fb" }
+}
