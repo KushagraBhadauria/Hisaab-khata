@@ -7,6 +7,7 @@ import { avatarBg, initials, relTime, todayISO } from '../lib/format'
 import { useStore } from '../lib/store'
 import { DEMO } from '../lib/supabase'
 import { saveBlob } from '../export/save'
+import { loadExcel } from '../lib/lazy'
 
 export default function Settings() {
   const nav = useNavigate()
@@ -25,7 +26,7 @@ export default function Settings() {
     if (!store.books.length) return toast({ text: 'No khatas to export yet' })
     setBusy(true)
     try {
-      const { buildAllExcel } = await import('../export/excel')
+      const { buildAllExcel } = await loadExcel()
       const blob = await buildAllExcel(store.books, store.entries, store.style)
       await saveBlob(blob, `All-Khatas_${todayISO()}.xlsx`)
       toast({ text: 'Backup downloaded' })

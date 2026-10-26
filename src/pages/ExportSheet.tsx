@@ -7,6 +7,7 @@ import { defaultCustom, periodOf, RANGE_LABEL, rangeDates, statement, type Custo
 import { useStore } from '../lib/store'
 import type { Book, Entry } from '../lib/types'
 import { canShareFiles, safeName, saveBlob } from '../export/save'
+import { loadExcel, loadPdf } from '../lib/lazy'
 
 const RANGES: RangeKey[] = ['today', 'week', 'month', 'lastmonth', 'all', 'custom']
 
@@ -29,8 +30,8 @@ export default function ExportSheet({ book, entries, onClose }: { book: Book; en
     setBusy(true)
     try {
       const blob = fmt === 'pdf'
-        ? await (await import('../export/pdf')).buildPdf(st, style, user?.name)
-        : await (await import('../export/excel')).buildExcel(st, style)
+        ? await (await loadPdf()).buildPdf(st, style, user?.name)
+        : await (await loadExcel()).buildExcel(st, style)
       const span = `${period.start}_to_${period.end}`
       const res = await saveBlob(blob, `${safeName(book.name)}_statement_${span}.${fmt}`, doShare)
       toast({ text: res === 'shared' ? 'Statement ready to share' : `${fmt === 'pdf' ? 'PDF' : 'Excel'} downloaded` })
