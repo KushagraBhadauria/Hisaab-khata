@@ -55,7 +55,7 @@ function addStatementSheet(wb: ExcelJS.Workbook, st: Statement, style: BalanceSt
 
   // Summary boxes (rows 4-5)
   const boxes: [string, string, string, ExcelJS.CellValue, string, string, string][] = [
-    ['A4:C4', 'A5:C5', 'Opening Balance', st.opening, BF, SOFT, INK],
+    ['A4:C4', 'A5:C5', `${st.openingLabel} (${st.carried ? 'brought forward on' : 'as on'} ${fmtDate(st.openingDate)})`, st.opening, BF, SOFT, INK],
     ['D4', 'D5', 'Total Debit (−)', st.totalDebit, AMT, DR_BG, DR],
     ['E4', 'E5', 'Total Credit (+)', st.totalCredit, AMT, CR_BG, CR],
     ['F4', 'F5', 'Net Balance', st.closing, BF, PRI_SOFT, st.closing < 0 ? DR : st.closing > 0 ? CR : INK],
@@ -83,7 +83,7 @@ function addStatementSheet(wb: ExcelJS.Workbook, st: Statement, style: BalanceSt
   // Opening row
   let r = 8
   const open = ws.getRow(r)
-  open.values = ['', st.openingDate ? xdate(st.openingDate) : '', 'Opening Balance', null, null, st.opening]
+  open.values = ['', st.openingDate ? xdate(st.openingDate) : '', st.openingLabel, null, null, st.opening]
   open.getCell(2).numFmt = 'dd mmm yyyy'
   open.getCell(6).numFmt = BF
   open.eachCell({ includeEmpty: true }, c => { c.fill = fill(SOFT); c.font = { italic: true, color: { argb: MUTE } }; c.border = border })

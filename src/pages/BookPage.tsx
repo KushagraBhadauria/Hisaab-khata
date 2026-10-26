@@ -73,7 +73,7 @@ export default function BookPage() {
       </div>
 
       <div className="sum">
-        <div>{allTime ? 'Opening balance' : `Opening (${fmtDay(st.openingDate)})`}<b>{fmtBal(st.opening, style)}</b></div>
+        <div>{st.carried ? `Balance B/F (${fmtDay(st.openingDate)})` : `Opening (${fmtDay(st.openingDate)})`}<b>{fmtBal(st.opening, style)}</b></div>
         <div className="bal">{allTime ? 'Net balance' : 'Closing balance'}
           <b className={st.closing < 0 ? 'red' : st.closing > 0 ? 'green' : ''}>{fmtBal(st.closing, style)}</b>
           <small>{balHint(st.closing, book)}</small>
@@ -95,7 +95,7 @@ export default function BookPage() {
         </div>
       )}
 
-      {!newest && <div className="opening"><span>Opening balance · {fmtDate(st.openingDate)}</span><b>{fmtBal(st.opening, style)}</b></div>}
+      {!newest && <div className="opening"><span>{st.openingLabel} · {fmtDate(st.openingDate)}</span><b>{fmtBal(st.opening, style)}</b></div>}
 
       {months.map(m => (
         <section key={m.key}>
@@ -118,7 +118,7 @@ export default function BookPage() {
         </section>
       ))}
 
-      {newest && st.rows.length > 0 && <div className="opening" style={{ marginTop: 10 }}><span>Opening balance · {fmtDate(st.openingDate)}</span><b>{fmtBal(st.opening, style)}</b></div>}
+      {newest && st.rows.length > 0 && <div className="opening" style={{ marginTop: 10 }}><span>{st.openingLabel} · {fmtDate(st.openingDate)}</span><b>{fmtBal(st.opening, style)}</b></div>}
 
       {entries.length === 0 && (
         <div className="empty">

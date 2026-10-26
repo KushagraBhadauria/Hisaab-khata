@@ -61,31 +61,34 @@ export async function buildPdf(st: Statement, style: BalanceStyle, owner?: strin
   const W = doc.internal.pageSize.getWidth()
   const M = 36
 
-  // ---------- header band ----------
-  doc.setFillColor(...C.pri)
-  doc.roundedRect(M, 30, W - 2 * M, 74, 12, 12, 'F')
-  doc.setTextColor(255, 255, 255)
-  doc.setFont(needDeva && DEVA.test(st.book.name) ? 'NotoDeva' : F, 'bold')
-  doc.setFontSize(19)
-  doc.text(`${fixHindi(st.book.name)} Statement`, M + 18, 60)
-  doc.setFont(F, 'normal')
-  doc.setFontSize(10)
+  // ---------- header band (grows to fit long khata names) ----------
   const { start, end } = periodOf(st)
   const periodText = start === end ? fmtDate(start) : `${fmtDate(start)} to ${fmtDate(end)}`
-  doc.text(`Statement period: ${periodText}`, M + 18, 78)
-  const right = [st.book.phone ? `Phone: ${st.book.phone}` : '', owner ? `Prepared by: ${owner}` : ''].filter(Boolean)
-  right.forEach((t, i) => doc.text(t, W - M - 18, 60 + i * 16, { align: 'right' }))
+  const titleFont = needDeva && DEVA.test(st.book.name) ? 'NotoDeva' : F
+  doc.setFont(titleFont, 'bold'); doc.setFontSize(19)
+  const titleLines: string[] = doc.splitTextToSize(`${fixHindi(st.book.name)} Statement`, W - 2 * M - 36)
+  const meta = [st.book.phone ? `Phone: ${st.book.phone}` : '', owner ? `Prepared by: ${owner}` : ''].filter(Boolean).join('     ·     ')
+  const hy = 30, titleH = titleLines.length * 23
+  const headH = 22 + titleH + 16 + (meta ? 16 : 0) + 12
+  doc.setFillColor(...C.pri)
+  doc.roundedRect(M, hy, W - 2 * M, headH, 12, 12, 'F')
+  doc.setTextColor(255, 255, 255)
+  let ty = hy + 32
+  titleLines.forEach(l => { doc.text(l, M + 18, ty); ty += 23 })
+  doc.setFont(F, 'normal'); doc.setFontSize(10.5)
+  doc.text(`Statement period: ${periodText}`, M + 18, ty - 4)
+  if (meta) { doc.setFontSize(9); doc.text(meta, M + 18, ty + 12) }
   doc.setFontSize(8.5)
-  doc.text('Hisaab Khata', W - M - 18, 92, { align: 'right' })
+  doc.text('Hisaab Khata', W - M - 18, hy + headH - 12, { align: 'right' })
 
   // ---------- summary boxes ----------
   const boxes: { label: string; value: string; sub: string; fill: [number, number, number]; color: [number, number, number] }[] = [
-    { label: 'Opening Balance', value: fmtBal(st.opening, style, { decimals: true }).replace('₹', rupee), sub: `(on ${fmtDate(st.openingDate)})`, fill: C.soft, color: C.ink },
+    { label: st.openingLabel, value: fmtBal(st.opening, style, { decimals: true }).replace('₹', rupee), sub: `(as on ${fmtDate(st.openingDate)})`, fill: C.soft, color: C.ink },
     { label: 'Total Debit (−)', value: `${rupee}${num2(st.totalDebit)}`, sub: 'Paid / Gave', fill: C.drBg, color: C.dr },
     { label: 'Total Credit (+)', value: `${rupee}${num2(st.totalCredit)}`, sub: 'Received / Got', fill: C.crBg, color: C.cr },
     { label: 'Net Balance', value: fmtBal(st.closing, style, { decimals: true }).replace('₹', rupee), sub: `(${balHint(st.closing, st.book)})`, fill: C.priSoft, color: st.closing < 0 ? C.dr : st.closing > 0 ? C.cr : C.ink },
   ]
-  const gap = 8, bw = (W - 2 * M - gap * 3) / 4, by = 116
+  const gap = 8, bw = (W - 2 * M - gap * 3) / 4, by = hy + headH + 12
   boxes.forEach((b, i) => {
     const x = M + i * (bw + gap)
     doc.setFillColor(...b.fill)
@@ -111,7 +114,7 @@ export async function buildPdf(st: Statement, style: BalanceStyle, owner?: strin
   const body: RowInput[] = []
   const span = (content: string, styles: CellDef['styles'] = {}): CellDef => ({ content, colSpan: 6, styles })
   body.push([{
-    content: `${fmtLongDate(st.openingDate)}        (Opening Balance: ${bal(st.opening)})`, colSpan: 6,
+    content: `${fmtLongDate(st.openingDate)}        (${st.openingLabel}: ${bal(st.opening)})`, colSpan: 6,
     styles: { fillColor: C.soft, textColor: C.mute, fontStyle: 'normal', halign: 'right' },
   }])
   for (const m of st.months) {

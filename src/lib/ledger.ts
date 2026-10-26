@@ -17,7 +17,12 @@ export interface Statement {
   to: string | null
   /** Balance at the start of the period (book opening + everything before `from`). */
   opening: number
+  /** Date that `opening` belongs to: the khata's own opening date, or the period start when brought forward. */
   openingDate: string
+  /** true = period starts after the khata opened, so `opening` is a Balance B/F (brought forward). */
+  carried: boolean
+  /** "Opening Balance" or "Balance B/F" */
+  openingLabel: string
   rows: Row[]
   months: MonthGroup[]
   totalDebit: number
@@ -50,6 +55,10 @@ export function statement(book: Book, entries: Entry[], from: string | null, to:
   const all = withBalances(book, entries)
   const before = from ? all.filter(r => r.entry_date < from) : []
   const opening = before.length ? before[before.length - 1].balance : book.opening_balance
+  // If the period starts on/before the day the khata was opened (and nothing was entered earlier),
+  // the opening balance is the khata's real opening balance, dated on the khata's opening date —
+  // so "This month" and "This week" never show the same opening balance with two different dates.
+  const carried = !!from && (before.length > 0 || from > book.opening_date)
   const rows = all.filter(r => (!from || r.entry_date >= from) && (!to || r.entry_date <= to))
   const months: MonthGroup[] = []
   let td = 0, tc = 0
@@ -64,7 +73,9 @@ export function statement(book: Book, entries: Entry[], from: string | null, to:
   const closing = rows.length ? rows[rows.length - 1].balance : opening
   return {
     book, from, to, opening,
-    openingDate: from ?? book.opening_date,
+    openingDate: carried ? from! : book.opening_date,
+    carried,
+    openingLabel: carried ? 'Balance B/F' : 'Opening Balance',
     rows, months, totalDebit: td / 100, totalCredit: tc / 100, closing,
   }
 }

@@ -60,7 +60,7 @@ export default function ExportSheet({ book, entries, onClose }: { book: Book; en
         <table>
           <thead><tr><th>#</th><th>Date</th><th>Details</th><th className="r">Debit(−)</th><th className="r">Credit(+)</th><th className="r">Balance</th></tr></thead>
           <tbody>
-            <tr><td></td><td colSpan={4} className="muted">Opening balance</td><td className="r">{fmtBal(st.opening, style, { rupee: false })}</td></tr>
+            <tr><td></td><td colSpan={4} className="muted">{st.openingLabel} · {fmtDay(st.openingDate)}</td><td className="r">{fmtBal(st.opening, style, { rupee: false })}</td></tr>
             {st.rows.length > preview.length && <tr><td colSpan={6} className="muted" style={{ textAlign: 'center' }}>… {st.rows.length - preview.length} more entries …</td></tr>}
             {preview.map(r => (
               <tr key={r.id}>

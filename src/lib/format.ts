@@ -27,8 +27,8 @@ export function balHint(n: number, book?: Pick<Book, 'kind' | 'name'>) {
   const v = r2(n)
   if (v === 0) return 'Settled'
   if (!book || book.kind === 'cashbook' || book.kind === 'other') return v < 0 ? 'Dr balance' : 'Cr balance'
-  const first = book.name.split(/\s+/)[0]
-  return v < 0 ? `${first} will give` : 'You will give'
+  const who = book.name.trim().length <= 18 ? book.name.trim() : 'Party'
+  return v < 0 ? `${who} will give` : 'You will give'
 }
 
 // ---------------- dates (always local, never UTC-shifted) ----------------
