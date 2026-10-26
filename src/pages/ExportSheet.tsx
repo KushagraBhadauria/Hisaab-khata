@@ -1,9 +1,9 @@
 import { useMemo, useState } from 'react'
 import { Icon } from '../components/Icon'
-import { Sheet, useToast } from '../components/ui'
+import { DateRangeInputs, PeriodLabel, Sheet, useToast } from '../components/ui'
 import { useAuth } from '../lib/auth'
-import { fmtBal, fmtDate, fmtDay, num, todayISO } from '../lib/format'
-import { RANGE_LABEL, rangeDates, statement, type RangeKey } from '../lib/ledger'
+import { fmtBal, fmtDate, fmtDay, num } from '../lib/format'
+import { defaultCustom, periodOf, RANGE_LABEL, rangeDates, statement, type CustomRange, type RangeKey } from '../lib/ledger'
 import { useStore } from '../lib/store'
 import type { Book, Entry } from '../lib/types'
 import { canShareFiles, safeName, saveBlob } from '../export/save'
@@ -15,7 +15,7 @@ export default function ExportSheet({ book, entries, onClose }: { book: Book; en
   const { user } = useAuth()
   const toast = useToast()
   const [range, setRange] = useState<RangeKey>('month')
-  const [custom, setCustom] = useState({ from: '', to: todayISO() })
+  const [custom, setCustom] = useState<CustomRange>(defaultCustom)
   const [fmt, setFmt] = useState<'pdf' | 'xlsx'>('pdf')
   const [busy, setBusy] = useState(false)
   const share = canShareFiles()
@@ -23,6 +23,7 @@ export default function ExportSheet({ book, entries, onClose }: { book: Book; en
   const { from, to } = rangeDates(range, custom)
   const st = useMemo(() => statement(book, entries, from, to), [book, entries, from, to])
   const preview = st.rows.slice(-4)
+  const period = periodOf(st)
 
   async function run(doShare: boolean) {
     setBusy(true)
@@ -30,7 +31,7 @@ export default function ExportSheet({ book, entries, onClose }: { book: Book; en
       const blob = fmt === 'pdf'
         ? await (await import('../export/pdf')).buildPdf(st, style, user?.name)
         : await (await import('../export/excel')).buildExcel(st, style)
-      const span = from || to ? `${from ?? 'start'}_to_${to ?? todayISO()}` : `till_${todayISO()}`
+      const span = `${period.start}_to_${period.end}`
       const res = await saveBlob(blob, `${safeName(book.name)}_statement_${span}.${fmt}`, doShare)
       toast({ text: res === 'shared' ? 'Statement ready to share' : `${fmt === 'pdf' ? 'PDF' : 'Excel'} downloaded` })
     } catch (e) {
@@ -43,12 +44,8 @@ export default function ExportSheet({ book, entries, onClose }: { book: Book; en
       <div className="chips">
         {RANGES.map(r => <button key={r} className={`chip ${range === r ? 'on' : ''}`} onClick={() => setRange(r)}>{RANGE_LABEL[r]}</button>)}
       </div>
-      {range === 'custom' && (
-        <div className="two">
-          <label className="field"><span>From</span><input type="date" value={custom.from} onChange={e => setCustom({ ...custom, from: e.target.value })} /></label>
-          <label className="field"><span>To</span><input type="date" value={custom.to} onChange={e => setCustom({ ...custom, to: e.target.value })} /></label>
-        </div>
-      )}
+      {range === 'custom' && <DateRangeInputs value={custom} onChange={setCustom} />}
+      <PeriodLabel start={period.start} end={period.end} count={st.rows.length} />
 
       <div className="fmt">
         <button className={`pdf ${fmt === 'pdf' ? 'on' : ''}`} onClick={() => setFmt('pdf')}><Icon name="pdf" />PDF<small>Print-ready statement</small></button>
@@ -58,7 +55,7 @@ export default function ExportSheet({ book, entries, onClose }: { book: Book; en
       <div className="preview">
         <div className="ph">
           <span>{book.name} · Statement</span>
-          <span>{from ? fmtDate(from) : 'Start'} – {fmtDate(to ?? todayISO())}</span>
+          <span>{fmtDate(period.start)} – {fmtDate(period.end)}</span>
         </div>
         <table>
           <thead><tr><th>#</th><th>Date</th><th>Details</th><th className="r">Debit(−)</th><th className="r">Credit(+)</th><th className="r">Balance</th></tr></thead>

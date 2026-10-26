@@ -1,16 +1,16 @@
 import { useMemo, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { Icon } from '../components/Icon'
-import { useToast } from '../components/ui'
+import { DateRangeInputs, PeriodLabel, useToast } from '../components/ui'
 import { avatarBg, balHint, fmtBal, fmtDate, fmtDay, fmtMonth, initials, num } from '../lib/format'
-import { RANGE_LABEL, rangeDates, statement, type RangeKey } from '../lib/ledger'
+import { defaultCustom, periodOf, RANGE_LABEL, rangeDates, statement, type CustomRange, type RangeKey } from '../lib/ledger'
 import { useStore } from '../lib/store'
 import type { Entry, EntryType } from '../lib/types'
 import BookForm, { KIND_LABEL } from './BookForm'
 import EntryForm from './EntryForm'
 import ExportSheet from './ExportSheet'
 
-const RANGES: RangeKey[] = ['all', 'month', 'lastmonth', 'week', 'custom']
+const RANGES: RangeKey[] = ['all', 'month', 'lastmonth', 'week', 'today', 'custom']
 const MODE_LABEL: Record<string, string> = { cash: 'Cash', upi: 'UPI', bank: 'Bank', cheque: 'Cheque', other: 'Other' }
 
 export default function BookPage() {
@@ -20,7 +20,7 @@ export default function BookPage() {
   const toast = useToast()
   const book = store.books.find(b => b.id === id)
   const [range, setRange] = useState<RangeKey>('all')
-  const [custom, setCustom] = useState({ from: '', to: '' })
+  const [custom, setCustom] = useState<CustomRange>(defaultCustom)
   const [q, setQ] = useState('')
   const [newest, setNewest] = useState(true)
   const [adding, setAdding] = useState<EntryType | null>(null)
@@ -86,12 +86,8 @@ export default function BookPage() {
         {RANGES.map(r => <button key={r} className={`chip ${range === r ? 'on' : ''}`} onClick={() => setRange(r)}>{RANGE_LABEL[r]}</button>)}
         <button className="chip" onClick={() => setNewest(!newest)}>{newest ? '↓ Newest first' : '↑ Oldest first'}</button>
       </div>
-      {range === 'custom' && (
-        <div className="two">
-          <label className="field"><span>From</span><input type="date" value={custom.from} onChange={e => setCustom({ ...custom, from: e.target.value })} /></label>
-          <label className="field"><span>To</span><input type="date" value={custom.to} onChange={e => setCustom({ ...custom, to: e.target.value })} /></label>
-        </div>
-      )}
+      {range === 'custom' && <DateRangeInputs value={custom} onChange={setCustom} />}
+      <PeriodLabel {...periodOf(st)} count={st.rows.length} />
       {entries.length > 4 && (
         <div className="search" style={{ marginTop: 0 }}>
           <Icon name="search" />

@@ -29,6 +29,8 @@ export default function BookForm({ book, onClose, onSaved, onDelete }: {
     if (!name.trim()) return setErr('Please give this khata a name.')
     const amt = openAmt.trim() ? calc(openAmt) : 0
     if (amt === null || amt < 0) return setErr('Opening balance must be a valid amount.')
+    if (!openDate) return setErr('Please choose the opening balance date.')
+    if (openDate > todayISO()) return setErr('Future dates are not allowed for the opening balance.')
     const saved = saveBook({
       id: book?.id, name, kind, phone: phone.trim() || null, note: note.trim() || null,
       opening_balance: openSide === 'dr' ? -amt : amt, opening_date: openDate,
@@ -57,7 +59,7 @@ export default function BookForm({ book, onClose, onSaved, onDelete }: {
             <input value={openAmt} onChange={e => setOpenAmt(e.target.value)} inputMode="decimal" placeholder="0" />
           </label>
           <label className="field"><span>As on date</span>
-            <input type="date" value={openDate} onChange={e => setOpenDate(e.target.value)} />
+            <input type="date" value={openDate} max={todayISO()} onChange={e => setOpenDate(e.target.value)} />
           </label>
         </div>
         <div className="toggle">

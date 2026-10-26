@@ -59,6 +59,7 @@ export default function EntryForm({ book, type: initialType, entry, onClose }: {
     setErr('')
     if (value === null || value <= 0) { setErr('Please enter a valid amount.'); amtRef.current?.focus(); return }
     if (!date) { setErr('Please choose a date.'); return }
+    if (date > todayISO()) { setErr('Future dates are not allowed. Please choose today or an earlier date.'); return }
     store.saveEntry({
       id: entry?.id, book_id: book.id, type, amount: value, entry_date: date,
       details: details.trim(), tag: tag || null, mode, ref_no: ref,
@@ -100,7 +101,7 @@ export default function EntryForm({ book, type: initialType, entry, onClose }: {
         {err && <div className="err">{err}</div>}
 
         <div className="two">
-          <label className="field"><span>Date</span><input type="date" value={date} onChange={e => setDate(e.target.value)} /></label>
+          <label className="field"><span>Date</span><input type="date" value={date} max={todayISO()} onChange={e => setDate(e.target.value)} /></label>
           <label className="field"><span>Ref / Bill no.</span><input value={ref} onChange={e => setRef(e.target.value)} placeholder="Optional" /></label>
         </div>
         <label className="field"><span>Details — why this amount?</span>

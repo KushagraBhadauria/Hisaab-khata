@@ -1,7 +1,7 @@
 import { jsPDF } from 'jspdf'
 import autoTable, { type RowInput, type CellDef } from 'jspdf-autotable'
-import { balHint, fmtBal, fmtDate, fmtDay, fmtLongDate, fmtMonth, num2, todayISO } from '../lib/format'
-import type { Statement } from '../lib/ledger'
+import { balHint, fmtBal, fmtDate, fmtDay, fmtLongDate, fmtMonth, num2 } from '../lib/format'
+import { periodOf, type Statement } from '../lib/ledger'
 import type { BalanceStyle } from '../lib/types'
 
 const C = {
@@ -70,10 +70,9 @@ export async function buildPdf(st: Statement, style: BalanceStyle, owner?: strin
   doc.text(`${fixHindi(st.book.name)} Statement`, M + 18, 60)
   doc.setFont(F, 'normal')
   doc.setFontSize(10)
-  const period = st.rows.length || st.from
-    ? `${fmtDate(st.from ?? st.openingDate)}  –  ${fmtDate(st.to ?? (st.rows.at(-1)?.entry_date ?? todayISO()))}`
-    : 'All time'
-  doc.text(`(${period})`, M + 18, 78)
+  const { start, end } = periodOf(st)
+  const periodText = start === end ? fmtDate(start) : `${fmtDate(start)} to ${fmtDate(end)}`
+  doc.text(`Statement period: ${periodText}`, M + 18, 78)
   const right = [st.book.phone ? `Phone: ${st.book.phone}` : '', owner ? `Prepared by: ${owner}` : ''].filter(Boolean)
   right.forEach((t, i) => doc.text(t, W - M - 18, 60 + i * 16, { align: 'right' }))
   doc.setFontSize(8.5)
@@ -100,8 +99,13 @@ export async function buildPdf(st: Statement, style: BalanceStyle, owner?: strin
     doc.text(b.sub, x + 10, by + 48, { maxWidth: bw - 16 })
   })
 
-  doc.setTextColor(...C.ink); doc.setFontSize(9.5)
-  doc.text(`No. of Entries: ${st.rows.length}`, M, by + 76)
+  // period strip: "From 01 Oct 2026  To 31 Oct 2026   ·   No. of Entries: 12"
+  doc.setFillColor(...C.priSoft)
+  doc.roundedRect(M, by + 64, W - 2 * M, 20, 6, 6, 'F')
+  doc.setTextColor(...C.pri); doc.setFont(F, 'bold'); doc.setFontSize(9.5)
+  doc.text(`From: ${fmtDate(start)}     To: ${fmtDate(end)}`, M + 10, by + 77.5)
+  doc.setTextColor(...C.ink); doc.setFont(F, 'normal')
+  doc.text(`No. of Entries: ${st.rows.length}`, W - M - 10, by + 77.5, { align: 'right' })
 
   // ---------- table ----------
   const body: RowInput[] = []
@@ -136,7 +140,7 @@ export async function buildPdf(st: Statement, style: BalanceStyle, owner?: strin
   ]]
 
   autoTable(doc, {
-    startY: by + 86,
+    startY: by + 92,
     margin: { left: M, right: M, bottom: 50 },
     head: [['#', 'Date', 'Details', 'Debit (−)', 'Credit (+)', 'Balance']],
     body, foot,

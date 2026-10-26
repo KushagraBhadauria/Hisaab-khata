@@ -1,7 +1,8 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from 'react'
 import { Icon } from './Icon'
 import { DEMO } from '../lib/supabase'
-import { relTime } from '../lib/format'
+import { fmtDate, relTime, todayISO } from '../lib/format'
+import { clampCustom, type CustomRange } from '../lib/ledger'
 import { useStore } from '../lib/store'
 
 // ---------------- Bottom sheet ----------------
@@ -66,5 +67,40 @@ export function SyncBadge() {
     <button className={`sync ${sync}`} onClick={() => refresh()} title="Tap to sync now">
       <i />{label}
     </button>
+  )
+}
+
+// ---------------- Custom date range (no future dates, From ≤ To) ----------------
+export function DateRangeInputs({ value, onChange }: { value: CustomRange; onChange(v: CustomRange): void }) {
+  const today = todayISO()
+  const set = (part: Partial<CustomRange>) => {
+    const next = { ...value, ...part }
+    // if the user moves From past To (or To before From), pull the other date along
+    if (next.from && next.to && next.from > next.to) {
+      if (part.from !== undefined) next.to = next.from
+      else next.from = next.to
+    }
+    onChange(clampCustom(next))
+  }
+  return (
+    <div className="two">
+      <label className="field"><span>From</span>
+        <input type="date" value={value.from} max={value.to || today} onChange={e => set({ from: e.target.value })} />
+      </label>
+      <label className="field"><span>To</span>
+        <input type="date" value={value.to} min={value.from || undefined} max={today} onChange={e => set({ to: e.target.value })} />
+      </label>
+    </div>
+  )
+}
+
+/** "📅 01 Oct 2026 – 31 Oct 2026" */
+export function PeriodLabel({ start, end, count }: { start: string; end: string; count?: number }) {
+  return (
+    <div className="period">
+      <Icon name="calendar" />
+      <span>{start === end ? fmtDate(start) : `${fmtDate(start)} – ${fmtDate(end)}`}</span>
+      {count !== undefined && <small>{count} entr{count === 1 ? 'y' : 'ies'}</small>}
+    </div>
   )
 }

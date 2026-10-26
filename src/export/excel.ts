@@ -1,6 +1,6 @@
 import ExcelJS from 'exceljs'
 import { balHint, fmtDate, fmtMonth, todayISO } from '../lib/format'
-import { statement, type Statement } from '../lib/ledger'
+import { periodOf, statement, type Statement } from '../lib/ledger'
 import type { BalanceStyle, Book, Entry } from '../lib/types'
 
 const PRI = 'FF6C5CE7', PRI_SOFT = 'FFEFEAFD', INK = 'FF1E1B2E', MUTE = 'FF7A7590', LINE = 'FFE4E0F0'
@@ -48,8 +48,8 @@ function addStatementSheet(wb: ExcelJS.Workbook, st: Statement, style: BalanceSt
   t.alignment = { vertical: 'middle', indent: 1 }
   ws.getRow(1).height = 32
   ws.mergeCells('A2:F2')
-  const end = st.to ?? st.rows.at(-1)?.entry_date ?? todayISO()
-  ws.getCell('A2').value = `Period: ${fmtDate(st.from ?? st.openingDate)} – ${fmtDate(end)}${st.book.phone ? `   ·   Phone: ${st.book.phone}` : ''}   ·   Entries: ${st.rows.length}`
+  const { start, end } = periodOf(st)
+  ws.getCell('A2').value = `Period: ${fmtDate(start)} to ${fmtDate(end)}${st.book.phone ? `   ·   Phone: ${st.book.phone}` : ''}   ·   Entries: ${st.rows.length}`
   ws.getCell('A2').font = { color: { argb: MUTE }, size: 10 }
   ws.getCell('A2').alignment = { indent: 1 }
 

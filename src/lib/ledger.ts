@@ -74,22 +74,66 @@ export type RangeKey = 'all' | 'today' | 'week' | 'month' | 'lastmonth' | 'custo
 export const RANGE_LABEL: Record<RangeKey, string> = {
   all: 'All time', today: 'Today', week: 'This week', month: 'This month', lastmonth: 'Last month', custom: 'Custom',
 }
-export function rangeDates(k: RangeKey, custom?: { from: string; to: string }): { from: string | null; to: string | null } {
+export interface CustomRange { from: string; to: string }
+
+/** Monday of the week that contains `d`. */
+function mondayOf(d: Date) {
+  const m = new Date(d.getFullYear(), d.getMonth(), d.getDate())
+  m.setDate(m.getDate() - ((m.getDay() + 6) % 7)) // Sun=0 → 6 days back, Mon=1 → 0
+  return m
+}
+
+/**
+ * Calendar periods:
+ *  - This week  = Monday → Sunday of the current week
+ *  - This month = 1st → last day of the current month (e.g. 01 Oct – 31 Oct)
+ *  - Last month = 1st → last day of the previous month
+ *  - Custom     = user's dates, never later than today, and From is never after To
+ */
+export function rangeDates(k: RangeKey, custom?: CustomRange): { from: string | null; to: string | null } {
   const now = new Date()
   const today = todayISO(now)
   switch (k) {
     case 'today': return { from: today, to: today }
     case 'week': {
-      const d = new Date(now); const day = (d.getDay() + 6) % 7 // Monday start
-      d.setDate(d.getDate() - day)
-      return { from: todayISO(d), to: today }
+      const mon = mondayOf(now)
+      const sun = new Date(mon); sun.setDate(mon.getDate() + 6)
+      return { from: todayISO(mon), to: todayISO(sun) }
     }
-    case 'month': return { from: todayISO(new Date(now.getFullYear(), now.getMonth(), 1)), to: today }
+    case 'month': return {
+      from: todayISO(new Date(now.getFullYear(), now.getMonth(), 1)),
+      to: todayISO(new Date(now.getFullYear(), now.getMonth() + 1, 0)),
+    }
     case 'lastmonth': return {
       from: todayISO(new Date(now.getFullYear(), now.getMonth() - 1, 1)),
       to: todayISO(new Date(now.getFullYear(), now.getMonth(), 0)),
     }
-    case 'custom': return { from: custom?.from || null, to: custom?.to || null }
+    case 'custom': {
+      const c = clampCustom(custom ?? defaultCustom())
+      return { from: c.from || null, to: c.to || null }
+    }
     default: return { from: null, to: null }
   }
+}
+
+/** Custom range starts as "1st of this month → today". */
+export const defaultCustom = (): CustomRange => {
+  const now = new Date()
+  return { from: todayISO(new Date(now.getFullYear(), now.getMonth(), 1)), to: todayISO(now) }
+}
+
+/** Keep a custom range valid: no future dates, From ≤ To. */
+export function clampCustom(c: CustomRange): CustomRange {
+  const today = todayISO()
+  let from = c.from && c.from > today ? today : c.from
+  let to = c.to && c.to > today ? today : c.to
+  if (from && to && from > to) [from, to] = [to, from]
+  return { from, to }
+}
+
+/** The exact dates a statement covers — used for labels, PDF and Excel headers. */
+export function periodOf(st: Pick<Statement, 'from' | 'to' | 'openingDate' | 'rows'>) {
+  const first = st.rows[0]?.entry_date
+  const start = st.from ?? (first && first < st.openingDate ? first : st.openingDate)
+  return { start, end: st.to ?? todayISO() }
 }
