@@ -8,6 +8,7 @@ import { useStore } from '../lib/store'
 import { DEMO } from '../lib/supabase'
 import { saveBlob } from '../export/save'
 import { loadExcel } from '../lib/lazy'
+import { IOSInstallHelp, useInstall } from '../components/InstallBanner'
 
 export default function Settings() {
   const nav = useNavigate()
@@ -16,6 +17,8 @@ export default function Settings() {
   const toast = useToast()
   const [name, setName] = useState(auth.user?.name ?? '')
   const [busy, setBusy] = useState(false)
+  const inst = useInstall()
+  const [iosHelp, setIosHelp] = useState(false)
 
   async function saveName() {
     if (!name.trim() || name.trim() === auth.user?.name) return
@@ -79,6 +82,17 @@ export default function Settings() {
         )}
         {store.syncError && <div className="err" style={{ margin: '0 15px 12px' }}>{store.syncError}</div>}
       </div>
+
+      {inst.available && (
+        <div className="group">
+          <h3>App</h3>
+          <button className="item" onClick={async () => { if ((await inst.install()) === 'ios-help') setIosHelp(true) }}>
+            <Icon name="download" />
+            <div className="grow">Install on this phone<small>Add Hisaab Khata to your home screen</small></div>
+          </button>
+        </div>
+      )}
+      {iosHelp && <IOSInstallHelp onClose={() => setIosHelp(false)} />}
 
       <div className="group">
         <h3>Account</h3>

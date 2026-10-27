@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Icon } from '../components/Icon'
 import { SyncBadge } from '../components/ui'
+import InstallBanner from '../components/InstallBanner'
 import { useAuth } from '../lib/auth'
 import { avatarBg, balHint, fmtBal, fmtDay, initials, num, todayISO, fmtLongDate } from '../lib/format'
 import { bookTotals } from '../lib/ledger'
@@ -58,6 +59,8 @@ export default function Home() {
           <div>Total Debit (−)<b>₹{num(totals.d)}</b></div>
         </div>
       </div>
+
+      <InstallBanner />
 
       {rows.length > 0 && (
         <>

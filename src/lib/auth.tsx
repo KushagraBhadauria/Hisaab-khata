@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react'
-import { DEMO, supabase } from './supabase'
+import { DEMO, SITE_URL, supabase } from './supabase'
 import { pref } from './idb'
 
 export interface AppUser { id: string; email: string; name: string }
@@ -63,18 +63,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     async signUp(email, password, name) {
       const { data, error } = await supabase!.auth.signUp({
         email: email.trim(), password,
-        options: { data: { full_name: name.trim() }, emailRedirectTo: window.location.origin },
+        options: { data: { full_name: name.trim() }, emailRedirectTo: `${SITE_URL}/` },
       })
       if (error) throw new Error(friendly(error.message))
       if (data.user && data.user.identities && data.user.identities.length === 0) throw new Error(friendly('already registered'))
       return data.session ? 'signed-in' : 'confirm-email'
     },
     async signInWithGoogle() {
-      const { error } = await supabase!.auth.signInWithOAuth({ provider: 'google', options: { redirectTo: window.location.origin } })
+      const { error } = await supabase!.auth.signInWithOAuth({ provider: 'google', options: { redirectTo: `${SITE_URL}/` } })
       if (error) throw new Error(friendly(error.message))
     },
     async sendReset(email) {
-      const { error } = await supabase!.auth.resetPasswordForEmail(email.trim(), { redirectTo: `${window.location.origin}/` })
+      const { error } = await supabase!.auth.resetPasswordForEmail(email.trim(), { redirectTo: `${SITE_URL}/` })
       if (error) throw new Error(friendly(error.message))
     },
     async setPassword(password) {

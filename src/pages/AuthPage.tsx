@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from 'react'
 import { useAuth } from '../lib/auth'
-import { DEMO, GOOGLE_LOGIN } from '../lib/supabase'
+import { DEMO, GOOGLE_LOGIN, LANDING } from '../lib/supabase'
 import { Icon } from '../components/Icon'
 
 type Mode = 'signin' | 'signup' | 'forgot'
@@ -23,7 +23,11 @@ export default function AuthPage() {
   const [password, setPassword] = useState('')
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState('')
-  const [ok, setOk] = useState('')
+  // Opened from the confirmation email in a browser that can't finish the login itself
+  // (e.g. a different browser, or the iPhone home-screen app): the email IS confirmed — just sign in.
+  const [ok, setOk] = useState(() =>
+    LANDING.fromEmail && !(LANDING.error && /expired|invalid/i.test(LANDING.error))
+      ? '✅ Your email is confirmed. Please sign in below.' : '')
 
   if (DEMO) {
     return (
