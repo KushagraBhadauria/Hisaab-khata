@@ -44,3 +44,6 @@ create policy "bills: owner can update" on storage.objects
 create policy "bills: owner can delete" on storage.objects
   for delete to authenticated
   using (bucket_id = 'bills' and (storage.foldername(name))[1] = (select auth.uid())::text);
+
+-- make the API see the new column immediately
+notify pgrst, 'reload schema';

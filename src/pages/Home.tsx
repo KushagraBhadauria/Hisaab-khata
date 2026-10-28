@@ -14,7 +14,8 @@ type Filter = 'all' | BookKind
 
 export default function Home() {
   const { user } = useAuth()
-  const { books, entries, style, ready } = useStore()
+  const store = useStore()
+  const { books, entries, style, ready } = store
   const nav = useNavigate()
   const [q, setQ] = useState('')
   const [filter, setFilter] = useState<Filter>('all')
@@ -60,6 +61,12 @@ export default function Home() {
         </div>
       </div>
 
+      {store.syncError && (
+        <div className="err" style={{ marginTop: 12, display: 'flex', gap: 10, alignItems: 'center' }}>
+          <span style={{ flex: 1 }}>{store.syncError}</span>
+          <button className="link" onClick={() => store.refresh()}>Retry</button>
+        </div>
+      )}
       <InstallBanner />
 
       {rows.length > 0 && (

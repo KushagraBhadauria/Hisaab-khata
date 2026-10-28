@@ -43,6 +43,19 @@ export async function kvSet(key: string, value: unknown): Promise<void> {
   }
 }
 
+/** All keys that start with `prefix` (IndexedDB only). */
+export async function kvKeys(prefix: string): Promise<string[]> {
+  try {
+    const db = await open()
+    return await new Promise<string[]>((res, rej) => {
+      const range = IDBKeyRange.bound(prefix, prefix + '\uffff')
+      const q = db.transaction(STORE).objectStore(STORE).getAllKeys(range)
+      q.onsuccess = () => res((q.result as IDBValidKey[]).map(String))
+      q.onerror = () => rej(q.error)
+    })
+  } catch { return [] }
+}
+
 /** Safe localStorage helpers for small preferences. */
 export const pref = {
   get(key: string, fallback: string) { try { return localStorage.getItem(key) ?? fallback } catch { return fallback } },

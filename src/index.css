@@ -259,13 +259,19 @@ a { color: var(--pri); text-decoration: none; }
 .addb.busy { opacity: .6; pointer-events: none; }
 .billchip { display: inline-flex; align-items: center; gap: 3px; font-size: 10.5px; font-weight: 800; padding: 2px 8px; border-radius: 10px; background: #e7f0ff; color: #2563eb; margin-left: 6px; vertical-align: middle; }
 .billchip svg { width: 12px; height: 12px; }
-.viewer { position: fixed; inset: 0; z-index: 70; background: rgba(10, 8, 20, .94); display: flex; flex-direction: column; animation: fade .15s; }
+.viewer { position: fixed; inset: 0; z-index: 70; background: #0b0a12; display: flex; flex-direction: column; animation: fade .15s; }
 .vbar { display: flex; align-items: center; gap: 10px; padding: calc(env(safe-area-inset-top) + 12px) 14px 10px; color: #fff; font-weight: 700; font-size: 14px; }
 .vbar span { flex: 1; }
-.vbtn { color: #fff; background: rgba(255,255,255,.12); border-radius: 11px; padding: 8px 12px; font-size: 12.5px; font-weight: 700; display: grid; place-items: center; }
-.vbtn svg { width: 16px; height: 16px; }
-.vimg { flex: 1; display: grid; place-items: center; padding: 8px; min-height: 0; }
-.vimg img { max-width: 100%; max-height: 100%; object-fit: contain; border-radius: 8px; }
-.vnav { display: flex; gap: 10px; padding: 10px 14px calc(env(safe-area-inset-bottom) + 16px); }
-.vnav button { flex: 1; color: #fff; background: rgba(255,255,255,.14); border-radius: 13px; padding: 12px; font-weight: 800; }
-.vnav button:disabled { opacity: .35; }
+.vbtn { color: #fff; background: rgba(255,255,255,.14); border-radius: 12px; width: 40px; height: 40px; display: grid; place-items: center; }
+.vbtn svg { width: 18px; height: 18px; }
+.vimg { flex: 1; min-height: 0; display: flex; align-items: center; justify-content: center; overflow: hidden; }
+.vimg img { max-width: 100%; max-height: 100%; width: auto; height: auto; object-fit: contain; cursor: zoom-in; user-select: none; }
+.vimg.zoom { overflow: auto; align-items: flex-start; justify-content: flex-start; }
+.vimg.zoom img { max-width: none; max-height: none; width: 200%; cursor: zoom-out; }
+.vmsg { color: #d6d3e6; text-align: center; max-width: 300px; display: flex; flex-direction: column; align-items: center; gap: 8px; font-size: 13.5px; line-height: 1.5; padding: 20px; }
+.vmsg svg { width: 44px; height: 44px; opacity: .6; }
+.vmsg b { color: #fff; font-size: 16px; }
+.vnav { display: flex; align-items: center; gap: 10px; padding: 10px 14px calc(env(safe-area-inset-bottom) + 16px); }
+.vnav small { flex: 1; text-align: center; color: #9b97b0; font-size: 12px; }
+.vnav button { width: 56px; height: 48px; color: #fff; background: rgba(255,255,255,.14); border-radius: 14px; font-size: 26px; font-weight: 700; line-height: 1; }
+.vnav button:disabled { opacity: .25; }

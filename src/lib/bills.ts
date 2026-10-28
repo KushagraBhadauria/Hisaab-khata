@@ -1,7 +1,7 @@
-import { kvGet, kvSet } from './idb'
+import { kvGet, kvKeys, kvSet } from './idb'
 import { uid } from './format'
 import { DEMO, supabase } from './supabase'
-import type { Attachment } from './types'
+import type { Attachment, Entry } from './types'
 
 /**
  * Bill / receipt photos.
@@ -132,3 +132,44 @@ export async function syncFiles(user: string, inUse: Set<string>): Promise<void>
 /** Total size of all bill photos (for the Settings screen). */
 export const totalBillBytes = (entries: { attachments?: Attachment[] }[]) =>
   entries.reduce((s, e) => s + (e.attachments ?? []).reduce((a, b) => a + (b.size || 0), 0), 0)
+
+/**
+ * Find photos that belong to an entry (their file path contains the entry id) but are not
+ * listed on that entry any more — e.g. saved while the database was not yet updated for photos.
+ * Looks on this phone first, then in the cloud. Returns entry id → photos to add back.
+ */
+export async function recoverBills(user: string, entries: Entry[]): Promise<Map<string, Attachment[]>> {
+  const out = new Map<string, Attachment[]>()
+  const byId = new Map(entries.map(e => [e.id, e]))
+  const known = new Set(entries.flatMap(e => (e.attachments ?? []).map(a => a.path)))
+  const q = await getQueue(user)
+  const removed = new Set(q.removals.map(r => r.path))
+  const add = (path: string, size: number) => {
+    const entryId = path.split('/')[1]
+    const e = byId.get(entryId)
+    if (!e || known.has(path) || removed.has(path)) return
+    known.add(path)
+    const list = out.get(entryId) ?? []
+    if ((e.attachments?.length ?? 0) + list.length >= MAX_BILLS) return
+    list.push({ path, size })
+    out.set(entryId, list)
+  }
+  // 1) photos still saved on this phone
+  for (const key of await kvKeys(`hk:blob:${user}/`)) {
+    const path = key.slice('hk:blob:'.length)
+    const blob = await kvGet<Blob>(key)
+    if (blob instanceof Blob) add(path, blob.size)
+  }
+  // 2) photos already in the cloud
+  if (!DEMO && supabase) {
+    const { data: folders } = await supabase.storage.from(BUCKET).list(user, { limit: 1000 })
+    for (const f of folders ?? []) {
+      if (f.id || !byId.has(f.name)) continue // only entry folders of entries that still exist
+      const { data: files } = await supabase.storage.from(BUCKET).list(`${user}/${f.name}`, { limit: 10 })
+      for (const file of files ?? []) {
+        if (file.id) add(`${user}/${f.name}/${file.name}`, Number((file.metadata as { size?: number } | null)?.size ?? 0))
+      }
+    }
+  }
+  return out
+}

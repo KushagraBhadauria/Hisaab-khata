@@ -2,7 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import { DEMO, supabase } from './supabase'
 import { kvGet, kvSet, pref } from './idb'
 import { uid } from './format'
-import { removeBills, syncFiles } from './bills'
+import { recoverBills, removeBills, syncFiles } from './bills'
 import type { BalanceStyle, Book, Entry, OutboxOp } from './types'
 
 /**
@@ -14,7 +14,11 @@ import type { BalanceStyle, Book, Entry, OutboxOp } from './types'
 
 export type SyncState = 'local' | 'synced' | 'syncing' | 'offline' | 'error'
 
-interface Data { books: Book[]; entries: Entry[]; outbox: OutboxOp[]; lastSync: string | null }
+interface Data {
+  books: Book[]; entries: Entry[]; outbox: OutboxOp[]; lastSync: string | null
+  /** entries whose photos could not be saved in the database yet (photo column missing) — retried every sync */
+  photoRetry?: string[]
+}
 const EMPTY: Data = { books: [], entries: [], outbox: [], lastSync: null }
 
 interface StoreCtx extends Data {
@@ -36,6 +40,7 @@ interface StoreCtx extends Data {
 const Ctx = createContext<StoreCtx>(null as unknown as StoreCtx)
 export const useStore = () => useContext(Ctx)
 
+const PHOTO_DB_MSG = 'Bill photos are kept on this phone but not saved online yet: run supabase/003_bill_photos.sql in Supabase (SQL Editor).'
 const isNetworkError = (msg?: string) => !navigator.onLine || /fetch|network|timeout|Load failed/i.test(msg ?? '')
 const strip = <T extends { user_id?: string }>(row: T) => { const { user_id: _u, ...rest } = row; void _u; return rest }
 
@@ -88,6 +93,8 @@ export function StoreProvider({ userId, children }: { userId: string; children: 
   const ref = useRef(data)
   const busy = useRef(false)
   const lastPull = useRef(0)
+  const recovered = useRef(false)
+  const pushAndPullRef = useRef<(() => Promise<void>) | null>(null)
 
   const commit = useCallback((next: Data) => {
     ref.current = next
@@ -109,17 +116,31 @@ export function StoreProvider({ userId, children }: { userId: string; children: 
         if (isNetworkError(m)) throw fe
         setSyncError(`Bill photos could not be uploaded: ${m}. Run supabase/003_bill_photos.sql in Supabase.`)
       }
+      // 0b) retry photos that the database could not store earlier
+      for (const id of [...(ref.current.photoRetry ?? [])]) {
+        const e = ref.current.entries.find(x => x.id === id)
+        const done = () => { const cur = ref.current; commit({ ...cur, photoRetry: (cur.photoRetry ?? []).filter(x => x !== id) }) }
+        if (!e) { done(); continue }
+        const r = await supabase.from('entries').update({ attachments: e.attachments }).eq('id', id)
+        if (r.error) { if (isNetworkError(r.error.message)) throw r.error; setSyncError(PHOTO_DB_MSG); break }
+        done()
+      }
       // 1) push outbox
       while (ref.current.outbox.length) {
         const op = ref.current.outbox[0]
         let res = op.op === 'delete'
           ? await supabase.from(op.table).delete().eq('id', op.id)
           : await supabase.from(op.table).upsert(strip(op.row as Book & Entry))
-        // database not updated for photos yet → still save the entry, just without photos
+        // database not updated for photos yet → save the entry without photos for now,
+        // keep the photos on this phone and retry them on every sync (nothing is lost)
         if (res.error && op.op === 'upsert' && op.table === 'entries' && /attachments/i.test(res.error.message)) {
           const { attachments: _a, ...rest } = strip(op.row); void _a
           res = await supabase.from('entries').upsert(rest)
-          if (!res.error) setSyncError('Entry saved, but bill photos need a database update: run supabase/003_bill_photos.sql in Supabase.')
+          if (!res.error) {
+            setSyncError(PHOTO_DB_MSG)
+            const cur = ref.current
+            if (op.row.attachments?.length) commit({ ...cur, photoRetry: [...new Set([...(cur.photoRetry ?? []), op.row.id])] })
+          }
         }
         if (res.error) {
           if (isNetworkError(res.error.message)) throw res.error
@@ -132,10 +153,33 @@ export function StoreProvider({ userId, children }: { userId: string; children: 
       // 2) pull fresh copy
       const [books, entries] = await Promise.all([fetchAll<Book>('books'), fetchAll<Entry>('entries')])
       const cur = ref.current
-      const merged = applyOutbox({ books: books.map(normBook), entries: entries.map(normEntry) }, cur.outbox)
+      // never let the server copy wipe photos that only this phone knows about yet
+      const retry = new Set(cur.photoRetry ?? [])
+      const local = new Map(cur.entries.map(e => [e.id, e]))
+      const serverEntries = entries.map(raw => {
+        const e = normEntry(raw)
+        const mine = local.get(e.id)
+        if (mine?.attachments?.length && (raw.attachments === undefined || retry.has(e.id))) return { ...e, attachments: mine.attachments }
+        return e
+      })
+      const merged = applyOutbox({ books: books.map(normBook), entries: serverEntries }, cur.outbox)
       commit({ ...cur, ...merged, lastSync: new Date().toISOString() })
+      // once per app start: re-attach photos that exist (on this phone or in the cloud) but are missing from their entry
+      if (!recovered.current) {
+        recovered.current = true
+        const found = await recoverBills(userId, ref.current.entries).catch(() => null)
+        if (found && found.size) {
+          const now = ref.current
+          const fixed = now.entries.map(e => (found.has(e.id) ? { ...e, attachments: [...e.attachments, ...found.get(e.id)!].slice(0, 4) } : e))
+          let outbox = now.outbox
+          for (const e of fixed) if (found.has(e.id)) outbox = enqueue(outbox, { op: 'upsert', table: 'entries', row: e })
+          commit({ ...now, entries: fixed, outbox })
+          setTimeout(() => pushAndPullRef.current?.(), 0)
+        }
+      }
       lastPull.current = Date.now()
       setSync('synced')
+      if (!ref.current.photoRetry?.length) setSyncError(e => (e === PHOTO_DB_MSG ? null : e))
     } catch (err) {
       const msg = (err as Error)?.message
       if (isNetworkError(msg)) setSync('offline')
@@ -144,6 +188,7 @@ export function StoreProvider({ userId, children }: { userId: string; children: 
       busy.current = false
     }
   }, [commit, userId])
+  pushAndPullRef.current = pushAndPull
 
   // load cache, then sync
   useEffect(() => {
