@@ -8,6 +8,9 @@ import { useStore } from '../lib/store'
 import { DEMO } from '../lib/supabase'
 import { saveBlob } from '../export/save'
 import { loadExcel } from '../lib/lazy'
+import { totalBillBytes } from '../lib/bills'
+
+const fmtBytes = (b: number) => (b < 1048576 ? `${Math.round(b / 1024)} KB` : `${(b / 1048576).toFixed(1)} MB`)
 import { IOSInstallHelp, useInstall } from '../components/InstallBanner'
 
 export default function Settings() {
@@ -74,6 +77,12 @@ export default function Settings() {
           <Icon name="excel" />
           <div className="grow">{busy ? 'Preparing…' : 'Download all khatas (Excel)'}<small>Summary + one sheet per khata — a full backup</small></div>
         </button>
+        <div className="item">
+          <Icon name="image" />
+          <div className="grow">Bill photos
+            <small>{store.entries.reduce((n, e) => n + (e.attachments?.length ?? 0), 0)} photos · {fmtBytes(totalBillBytes(store.entries))} used of 1 GB free</small>
+          </div>
+        </div>
         {!DEMO && (
           <button className="item" onClick={() => store.refresh()}>
             <Icon name="refresh" />

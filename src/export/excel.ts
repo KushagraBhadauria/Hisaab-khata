@@ -2,6 +2,7 @@ import ExcelJS from 'exceljs'
 import { balHint, fmtDate, fmtMonth, todayISO } from '../lib/format'
 import { periodOf, statement, type Statement } from '../lib/ledger'
 import type { BalanceStyle, Book, Entry } from '../lib/types'
+import { publicUrl } from '../lib/bills'
 
 const PRI = 'FF6C5CE7', PRI_SOFT = 'FFEFEAFD', INK = 'FF1E1B2E', MUTE = 'FF7A7590', LINE = 'FFE4E0F0'
 const DR = 'FFD6363B', DR_BG = 'FFFFF0F0', CR = 'FF0E8C45', CR_BG = 'FFE9F9EF', SOFT = 'FFF8F6FD'
@@ -37,6 +38,9 @@ function addStatementSheet(wb: ExcelJS.Workbook, st: Statement, style: BalanceSt
     { key: 'sn', width: 6 }, { key: 'date', width: 13 }, { key: 'details', width: 52 },
     { key: 'dr', width: 15 }, { key: 'cr', width: 15 }, { key: 'bal', width: 17 },
   ]
+  // one extra column per bill photo (only if this statement has photos)
+  const photoCols = Math.max(0, ...st.rows.map(e => e.attachments?.length ?? 0))
+  for (let k = 0; k < photoCols; k++) ws.getColumn(7 + k).width = 11
   const BF = balFmt(style)
 
   // Title
@@ -72,7 +76,7 @@ function addStatementSheet(wb: ExcelJS.Workbook, st: Statement, style: BalanceSt
 
   // Header (row 7)
   const head = ws.getRow(7)
-  head.values = ['#', 'Date', 'Details', 'Debit (−)', 'Credit (+)', 'Balance']
+  head.values = ['#', 'Date', 'Details', 'Debit (−)', 'Credit (+)', 'Balance', ...Array.from({ length: photoCols }, (_, k) => `Bill ${k + 1}`)]
   head.height = 22
   head.eachCell(c => {
     c.font = { bold: true, color: { argb: 'FFFFFFFF' } }; c.fill = fill(PRI); c.border = border
@@ -116,6 +120,13 @@ function addStatementSheet(wb: ExcelJS.Workbook, st: Statement, style: BalanceSt
       row.getCell(6).font = { bold: true, color: { argb: e.balance < 0 ? DR : CR } }
       row.getCell(4).fill = fill(e.type === 'debit' ? DR_BG : 'FFFFFFFF')
       row.getCell(5).fill = fill(e.type === 'credit' ? CR_BG : 'FFFFFFFF')
+      ;(e.attachments ?? []).forEach((a, k) => {
+        const url = publicUrl(a.path)
+        const c = row.getCell(7 + k)
+        c.value = url ? { text: '📷 View', hyperlink: url } : '📷 (on phone)'
+        c.font = { color: { argb: 'FF2563EB' }, underline: !!url }
+        c.alignment = { horizontal: 'center' }
+      })
       row.eachCell({ includeEmpty: true }, c => { c.border = border; c.alignment = { ...c.alignment, vertical: 'top' } })
       prevBal = `F${r}`
     }

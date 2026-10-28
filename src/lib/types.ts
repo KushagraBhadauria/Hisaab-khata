@@ -28,8 +28,18 @@ export interface Entry {
   mode: PayMode | null
   tag: string | null
   ref_no: string | null
+  /** Bill / receipt photos (max 4) */
+  attachments: Attachment[]
   created_at: string
   updated_at: string
+}
+
+export interface Attachment {
+  /** bills/<user id>/<entry id>/<random>.jpg inside Supabase Storage */
+  path: string
+  size: number
+  w?: number
+  h?: number
 }
 
 /** Pending change waiting to be sent to the server (offline outbox). */

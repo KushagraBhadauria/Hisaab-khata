@@ -241,3 +241,31 @@ a { color: var(--pri); text-decoration: none; }
 .ios-steps li { display: flex; gap: 12px; align-items: flex-start; background: var(--card); border: 1px solid var(--line); border-radius: 15px; padding: 12px 14px; font-size: 14px; }
 .ios-steps li > b { width: 26px; height: 26px; border-radius: 50%; background: var(--pri); color: #fff; display: grid; place-items: center; flex: none; font-size: 13px; }
 .ios-ico { display: inline-flex; vertical-align: middle; margin-left: 4px; color: #0a84ff; font-style: normal; font-weight: 800; }
+
+/* ---------- bill photos ---------- */
+.bills { background: var(--card); border: 1px solid var(--line); border-radius: 15px; padding: 10px 12px; margin-bottom: 11px; }
+.bills .lbl { display: flex; align-items: center; gap: 6px; font-size: 10.5px; color: var(--mute); font-weight: 800; text-transform: uppercase; letter-spacing: .5px; margin-bottom: 8px; }
+.bills .lbl svg { width: 14px; height: 14px; }
+.thumbs { display: flex; flex-wrap: wrap; gap: 8px; }
+.thumb { position: relative; width: 64px; height: 64px; }
+.thumb .img { width: 64px; height: 64px; border-radius: 12px; overflow: hidden; background: var(--soft); border: 1px solid var(--line); display: grid; place-items: center; color: var(--mute); }
+.thumb .img img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.thumb .img svg { width: 22px; height: 22px; }
+.thumb .rm { position: absolute; top: -6px; right: -6px; width: 22px; height: 22px; border-radius: 50%; background: var(--ink); color: var(--card); display: grid; place-items: center; }
+.thumb .rm svg { width: 12px; height: 12px; }
+.addb { width: 64px; height: 64px; border-radius: 12px; border: 1.5px dashed var(--pri2); background: var(--pri-soft); color: var(--pri); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; font-size: 10.5px; font-weight: 700; cursor: pointer; }
+.addb svg { width: 20px; height: 20px; }
+.addb input { display: none; }
+.addb.busy { opacity: .6; pointer-events: none; }
+.billchip { display: inline-flex; align-items: center; gap: 3px; font-size: 10.5px; font-weight: 800; padding: 2px 8px; border-radius: 10px; background: #e7f0ff; color: #2563eb; margin-left: 6px; vertical-align: middle; }
+.billchip svg { width: 12px; height: 12px; }
+.viewer { position: fixed; inset: 0; z-index: 70; background: rgba(10, 8, 20, .94); display: flex; flex-direction: column; animation: fade .15s; }
+.vbar { display: flex; align-items: center; gap: 10px; padding: calc(env(safe-area-inset-top) + 12px) 14px 10px; color: #fff; font-weight: 700; font-size: 14px; }
+.vbar span { flex: 1; }
+.vbtn { color: #fff; background: rgba(255,255,255,.12); border-radius: 11px; padding: 8px 12px; font-size: 12.5px; font-weight: 700; display: grid; place-items: center; }
+.vbtn svg { width: 16px; height: 16px; }
+.vimg { flex: 1; display: grid; place-items: center; padding: 8px; min-height: 0; }
+.vimg img { max-width: 100%; max-height: 100%; object-fit: contain; border-radius: 8px; }
+.vnav { display: flex; gap: 10px; padding: 10px 14px calc(env(safe-area-inset-bottom) + 16px); }
+.vnav button { flex: 1; color: #fff; background: rgba(255,255,255,.14); border-radius: 13px; padding: 12px; font-weight: 800; }
+.vnav button:disabled { opacity: .35; }

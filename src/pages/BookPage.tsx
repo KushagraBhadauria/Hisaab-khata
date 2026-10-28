@@ -5,7 +5,8 @@ import { DateRangeInputs, PeriodLabel, useToast } from '../components/ui'
 import { avatarBg, balHint, fmtBal, fmtDate, fmtDay, fmtMonth, initials, num } from '../lib/format'
 import { defaultCustom, periodOf, RANGE_LABEL, rangeDates, statement, type CustomRange, type RangeKey } from '../lib/ledger'
 import { useStore } from '../lib/store'
-import type { Entry, EntryType } from '../lib/types'
+import type { Attachment, Entry, EntryType } from '../lib/types'
+import { BillViewer } from '../components/Bills'
 import BookForm, { KIND_LABEL } from './BookForm'
 import EntryForm from './EntryForm'
 import ExportSheet from './ExportSheet'
@@ -27,6 +28,7 @@ export default function BookPage() {
   const [editing, setEditing] = useState<Entry | null>(null)
   const [editBook, setEditBook] = useState(false)
   const [exporting, setExporting] = useState(false)
+  const [viewing, setViewing] = useState<Attachment[] | null>(null)
 
   const entries = useMemo(() => store.entries.filter(e => e.book_id === id), [store.entries, id])
   const { from, to } = rangeDates(range, custom)
@@ -110,7 +112,13 @@ export default function BookPage() {
                 <div className={`pill ${r.type === 'debit' ? 'red' : 'green'}`}>{r.type === 'debit' ? '−' : '+'}{num(r.amount)}</div>
               </div>
               <div className="m">
-                <span>#{r.serial} · {fmtDay(r.entry_date)}{r.mode ? ` · ${MODE_LABEL[r.mode]}` : ''}{r.tag && <span className="tag">{r.tag}</span>}</span>
+                <span>#{r.serial} · {fmtDay(r.entry_date)}{r.mode ? ` · ${MODE_LABEL[r.mode]}` : ''}{r.tag && <span className="tag">{r.tag}</span>}
+                  {r.attachments?.length > 0 && (
+                    <span className="billchip" role="button" tabIndex={0} title="View bill photos"
+                      onClick={e => { e.stopPropagation(); setViewing(r.attachments) }}>
+                      <Icon name="image" />{r.attachments.length}
+                    </span>
+                  )}</span>
                 <span>Bal {fmtBal(r.balance, style, { rupee: false })}</span>
               </div>
             </button>
@@ -137,6 +145,7 @@ export default function BookPage() {
       {adding && <EntryForm book={book} type={adding} onClose={() => setAdding(null)} />}
       {editing && <EntryForm book={book} type={editing.type} entry={editing} onClose={() => setEditing(null)} />}
       {editBook && <BookForm book={book} onClose={() => setEditBook(false)} onDelete={removeBook} />}
+      {viewing && <BillViewer list={viewing} onClose={() => setViewing(null)} />}
       {exporting && <ExportSheet book={book} entries={entries} onClose={() => setExporting(false)} />}
     </div>
   )

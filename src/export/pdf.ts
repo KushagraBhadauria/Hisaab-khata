@@ -2,7 +2,8 @@ import { jsPDF } from 'jspdf'
 import autoTable, { type RowInput, type CellDef } from 'jspdf-autotable'
 import { balHint, fmtBal, fmtDate, fmtDay, fmtLongDate, fmtMonth, num2 } from '../lib/format'
 import { periodOf, type Statement } from '../lib/ledger'
-import type { BalanceStyle } from '../lib/types'
+import type { Attachment, BalanceStyle } from '../lib/types'
+import { publicUrl } from '../lib/bills'
 
 const C = {
   pri: [108, 92, 231] as [number, number, number],
@@ -112,6 +113,7 @@ export async function buildPdf(st: Statement, style: BalanceStyle, owner?: strin
 
   // ---------- table ----------
   const body: RowInput[] = []
+  const photoRows = new WeakMap<object, Attachment[]>()   // rows that have bill photos
   const span = (content: string, styles: CellDef['styles'] = {}): CellDef => ({ content, colSpan: 6, styles })
   body.push([{
     content: `${fmtLongDate(st.openingDate)}        (${st.openingLabel}: ${bal(st.opening)})`, colSpan: 6,
@@ -120,13 +122,15 @@ export async function buildPdf(st: Statement, style: BalanceStyle, owner?: strin
   for (const m of st.months) {
     body.push([span(fmtMonth(m.key), { fillColor: C.priSoft, textColor: C.pri, fontStyle: 'bold' })])
     for (const r of m.rows) {
-      body.push([
+      const row: RowInput = [
         String(r.serial), fmtDay(r.entry_date),
         [r.details || (r.type === 'debit' ? 'Debit' : 'Credit'), r.tag ? `[${r.tag}]` : '', r.ref_no ? `Ref: ${r.ref_no}` : ''].filter(Boolean).join('  ').replace(/^[\s\S]*$/, fixHindi),
         r.type === 'debit' ? num2(r.amount) : '',
         r.type === 'credit' ? num2(r.amount) : '',
         bal(r.balance),
-      ])
+      ]
+      if (r.attachments?.length) photoRows.set(row as object, r.attachments)
+      body.push(row)
     }
     body.push([
       { content: `${fmtMonth(m.key).split(' ')[0]} Total`, colSpan: 3, styles: { fontStyle: 'bold' } },
@@ -160,7 +164,31 @@ export async function buildPdf(st: Statement, style: BalanceStyle, owner?: strin
       4: { cellWidth: 74, halign: 'right', textColor: C.cr },
       5: { cellWidth: 86, halign: 'right', fontStyle: 'bold' },
     },
+    didDrawCell(data) {
+      // small blue photo icons at the right of "Details" — each one is a clickable link to the bill
+      if (data.section !== 'body' || data.column.index !== 2) return
+      const atts = photoRows.get(data.row.raw as object)
+      if (!atts) return
+      const iw = 12, ih = 10, gap = 3
+      let x = data.cell.x + data.cell.width - 6 - atts.length * (iw + gap) + gap
+      const y = data.cell.y + data.cell.height / 2 - ih / 2
+      for (const a of atts) {
+        doc.setFillColor(37, 99, 235)
+        doc.roundedRect(x, y, iw, ih, 1.6, 1.6, 'F')
+        doc.setFillColor(255, 255, 255)
+        doc.triangle(x + 2, y + ih - 2, x + 5.5, y + 4, x + 8, y + ih - 2, 'F')
+        doc.triangle(x + 6, y + ih - 2, x + 8, y + 5.5, x + iw - 2, y + ih - 2, 'F')
+        doc.circle(x + iw - 3.2, y + 3, 1.1, 'F')
+        const url = publicUrl(a.path)
+        if (url) doc.link(x - 1, y - 1, iw + 2, ih + 2, { url })
+        x += iw + gap
+      }
+    },
     didParseCell(data) {
+      if (data.section === 'body' && data.column.index === 2) {
+        const atts = photoRows.get(data.row.raw as object)
+        if (atts) data.cell.styles.cellPadding = { top: 6, bottom: 6, left: 6, right: 8 + atts.length * 15 }
+      }
       if (data.section === 'head' && data.column.index >= 3) data.cell.styles.halign = 'right'
       if (data.section === 'foot' && data.column.index >= 3) data.cell.styles.halign = 'right'
       if (data.section === 'foot' && data.column.index === 3) data.cell.styles.textColor = [255, 160, 163]
@@ -174,6 +202,7 @@ export async function buildPdf(st: Statement, style: BalanceStyle, owner?: strin
   })
 
   // ---------- footer on every page ----------
+  const hasPhotos = st.rows.some(r => r.attachments?.length)
   const pages = doc.getNumberOfPages()
   const H = doc.internal.pageSize.getHeight()
   const stamp = new Date().toLocaleString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })
@@ -181,7 +210,7 @@ export async function buildPdf(st: Statement, style: BalanceStyle, owner?: strin
     doc.setPage(p)
     doc.setDrawColor(...C.line); doc.line(M, H - 34, W - M, H - 34)
     doc.setFont(F, 'normal'); doc.setFontSize(8); doc.setTextColor(...C.mute)
-    doc.text(`Report generated: ${stamp}`, M, H - 20)
+    doc.text(`Report generated: ${stamp}${hasPhotos ? '   ·   Tap the blue photo icon to open the bill' : ''}`, M, H - 20)
     doc.text(`Page ${p} of ${pages}`, W - M, H - 20, { align: 'right' })
   }
   return doc.output('blob')

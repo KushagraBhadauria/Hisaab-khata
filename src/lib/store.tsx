@@ -2,6 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import { DEMO, supabase } from './supabase'
 import { kvGet, kvSet, pref } from './idb'
 import { uid } from './format'
+import { removeBills, syncFiles } from './bills'
 import type { BalanceStyle, Book, Entry, OutboxOp } from './types'
 
 /**
@@ -75,7 +76,7 @@ async function fetchAll<T>(table: 'books' | 'entries'): Promise<T[]> {
 }
 
 const normBook = (b: Book): Book => ({ ...b, opening_balance: Number(b.opening_balance) })
-const normEntry = (e: Entry): Entry => ({ ...e, amount: Number(e.amount) })
+const normEntry = (e: Entry): Entry => ({ ...e, amount: Number(e.amount), attachments: Array.isArray(e.attachments) ? e.attachments : [] })
 
 export function StoreProvider({ userId, children }: { userId: string; children: ReactNode }) {
   const KEY = `hk:data:${userId}`
@@ -99,12 +100,27 @@ export function StoreProvider({ userId, children }: { userId: string; children: 
     busy.current = true
     setSync('syncing')
     try {
+      // 0) bill photos: upload waiting ones, delete removed ones
+      try {
+        const inUse = new Set(ref.current.entries.flatMap(e => (e.attachments ?? []).map(a => a.path)))
+        await syncFiles(userId, inUse)
+      } catch (fe) {
+        const m = (fe as Error)?.message ?? ''
+        if (isNetworkError(m)) throw fe
+        setSyncError(`Bill photos could not be uploaded: ${m}. Run supabase/003_bill_photos.sql in Supabase.`)
+      }
       // 1) push outbox
       while (ref.current.outbox.length) {
         const op = ref.current.outbox[0]
-        const res = op.op === 'delete'
+        let res = op.op === 'delete'
           ? await supabase.from(op.table).delete().eq('id', op.id)
           : await supabase.from(op.table).upsert(strip(op.row as Book & Entry))
+        // database not updated for photos yet → still save the entry, just without photos
+        if (res.error && op.op === 'upsert' && op.table === 'entries' && /attachments/i.test(res.error.message)) {
+          const { attachments: _a, ...rest } = strip(op.row); void _a
+          res = await supabase.from('entries').upsert(rest)
+          if (!res.error) setSyncError('Entry saved, but bill photos need a database update: run supabase/003_bill_photos.sql in Supabase.')
+        }
         if (res.error) {
           if (isNetworkError(res.error.message)) throw res.error
           // invalid change (e.g. validation) — drop it so the queue never gets stuck
@@ -127,14 +143,14 @@ export function StoreProvider({ userId, children }: { userId: string; children: 
     } finally {
       busy.current = false
     }
-  }, [commit])
+  }, [commit, userId])
 
   // load cache, then sync
   useEffect(() => {
     let alive = true
     kvGet<Data>(KEY).then(cached => {
       if (!alive) return
-      const d = cached ? { ...EMPTY, ...cached } : EMPTY
+      const d = cached ? { ...EMPTY, ...cached, entries: (cached.entries ?? []).map(normEntry) } : EMPTY
       ref.current = d
       setData(d)
       setReady(true)
@@ -199,6 +215,7 @@ export function StoreProvider({ userId, children }: { userId: string; children: 
         const book = ref.current.books.find(b => b.id === id)
         if (!book) return null
         const entries = ref.current.entries.filter(e => e.book_id === id)
+        removeBills(userId, entries.flatMap(e => (e.attachments ?? []).map(a => a.path)))
         change(d => ({
           ...d,
           books: d.books.filter(b => b.id !== id),
@@ -229,6 +246,7 @@ export function StoreProvider({ userId, children }: { userId: string; children: 
           mode: input.mode ?? null,
           tag: input.tag?.trim() || null,
           ref_no: input.ref_no?.trim() || null,
+          attachments: input.attachments ?? prev?.attachments ?? [],
           created_at: prev?.created_at ?? now,
           updated_at: now,
         }
@@ -244,6 +262,7 @@ export function StoreProvider({ userId, children }: { userId: string; children: 
         const e = ref.current.entries.find(x => x.id === id)
         if (!e) return null
         change(d => ({ ...d, entries: d.entries.filter(x => x.id !== id), outbox: queue(d, { op: 'delete', table: 'entries', id }) }))
+        removeBills(userId, (e.attachments ?? []).map(a => a.path))
         return e
       },
 
@@ -251,7 +270,7 @@ export function StoreProvider({ userId, children }: { userId: string; children: 
         change(d => ({ ...d, entries: [...d.entries.filter(x => x.id !== e.id), e], outbox: queue(d, { op: 'upsert', table: 'entries', row: e }) }))
       },
     }
-  }, [data, ready, sync, syncError, style, change, pushAndPull])
+  }, [data, ready, sync, syncError, style, change, pushAndPull, userId])
 
   return <Ctx.Provider value={api}>{children}</Ctx.Provider>
 }

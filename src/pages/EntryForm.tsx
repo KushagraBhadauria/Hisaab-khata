@@ -4,7 +4,12 @@ import { calc, isExpression } from '../lib/calc'
 import { fmtBal, num, todayISO } from '../lib/format'
 import { withBalances } from '../lib/ledger'
 import { useStore } from '../lib/store'
-import type { Book, Entry, EntryType, PayMode } from '../lib/types'
+import type { Attachment, Book, Entry, EntryType, PayMode } from '../lib/types'
+import { useAuth } from '../lib/auth'
+import { addBill, MAX_BILLS, removeBills } from '../lib/bills'
+import { uid } from '../lib/format'
+import { BillThumb, BillViewer } from '../components/Bills'
+import { Icon } from '../components/Icon'
 
 const DEFAULT_TAGS: Record<EntryType, string[]> = {
   debit: ['Material', 'Labour', 'Salary', 'Purchase', 'Transport', 'Food'],
@@ -14,13 +19,42 @@ const MODES: { k: PayMode; label: string }[] = [
   { k: 'cash', label: '💵 Cash' }, { k: 'upi', label: '📱 UPI' }, { k: 'bank', label: '🏦 Bank' }, { k: 'cheque', label: '🧾 Cheque' },
 ]
 
-export default function EntryForm({ book, type: initialType, entry, onClose }: {
+export default function EntryForm({ book, type: initialType, entry, onClose: close }: {
   book: Book
   type: EntryType
   entry?: Entry
   onClose(): void
 }) {
   const store = useStore()
+  const { user } = useAuth()
+  // bill photos
+  const [entryId, setEntryId] = useState(() => entry?.id ?? uid())
+  const [atts, setAtts] = useState<Attachment[]>(entry?.attachments ?? [])
+  const [added, setAdded] = useState<string[]>([])      // new this time (discard if cancelled)
+  const [photoBusy, setPhotoBusy] = useState(false)
+  const [viewAt, setViewAt] = useState<number | null>(null)
+  const saved = useRef(false)
+
+  async function pickPhotos(files: FileList | null) {
+    if (!files?.length || !user) return
+    const room = MAX_BILLS - atts.length
+    const list = Array.from(files).slice(0, room)
+    if (files.length > room) toast({ text: `Only ${MAX_BILLS} photos per entry — added the first ${room}.` })
+    setPhotoBusy(true)
+    try {
+      for (const f of list) {
+        const a = await addBill(user.id, entryId, f)
+        setAtts(x => [...x, a]); setAdded(x => [...x, a.path])
+      }
+    } catch (e) { setErr((e as Error).message) } finally { setPhotoBusy(false) }
+  }
+  function dropPhoto(path: string) { setAtts(x => x.filter(a => a.path !== path)) }
+
+  /** Closing without saving: throw away photos added in this form. */
+  function onClose() {
+    if (!saved.current && user) removeBills(user.id, added)
+    close()
+  }
   const toast = useToast()
   const [type, setType] = useState<EntryType>(entry?.type ?? initialType)
   const [amount, setAmount] = useState(entry ? String(entry.amount) : '')
@@ -49,7 +83,7 @@ export default function EntryForm({ book, type: initialType, entry, onClose }: {
     if (value === null || value <= 0) return null
     const draft: Entry = {
       id: entry?.id ?? '__draft__', book_id: book.id, entry_date: date, details, type, amount: value,
-      mode, tag: tag || null, ref_no: null, created_at: entry?.created_at ?? new Date().toISOString(), updated_at: '',
+      mode, tag: tag || null, ref_no: null, attachments: [], created_at: entry?.created_at ?? new Date().toISOString(), updated_at: '',
     }
     const rows = withBalances(book, [...bookEntries.filter(e => e.id !== draft.id), draft])
     return rows.find(r => r.id === draft.id)?.balance ?? null
@@ -61,17 +95,24 @@ export default function EntryForm({ book, type: initialType, entry, onClose }: {
     if (!date) { setErr('Please choose a date.'); return }
     if (date > todayISO()) { setErr('Future dates are not allowed. Please choose today or an earlier date.'); return }
     store.saveEntry({
-      id: entry?.id, book_id: book.id, type, amount: value, entry_date: date,
-      details: details.trim(), tag: tag || null, mode, ref_no: ref,
+      id: entryId, book_id: book.id, type, amount: value, entry_date: date,
+      details: details.trim(), tag: tag || null, mode, ref_no: ref, attachments: atts,
     })
-    toast({ text: `${type === 'debit' ? 'Debit' : 'Credit'} of ₹${num(value)} saved` })
-    if (again) { setAmount(''); setDetails(''); setRef(''); amtRef.current?.focus() } else onClose()
+    // photos removed while editing → delete them from storage too
+    const keep = new Set(atts.map(a => a.path))
+    const removed = [...(entry?.attachments ?? []).map(a => a.path), ...added].filter(p => !keep.has(p))
+    if (user && removed.length) removeBills(user.id, removed)
+    toast({ text: `${type === 'debit' ? 'Debit' : 'Credit'} of ₹${num(value)} saved${atts.length ? ` with ${atts.length} photo${atts.length > 1 ? 's' : ''}` : ''}` })
+    if (again) {
+      setAmount(''); setDetails(''); setRef(''); setAtts([]); setAdded([]); setEntryId(uid()); amtRef.current?.focus()
+    } else { saved.current = true; close() }
   }
 
   function remove() {
     if (!entry) return
     const gone = store.deleteEntry(entry.id)
-    onClose()
+    saved.current = true
+    close()
     if (gone) toast({ text: 'Entry deleted', action: { label: 'UNDO', run: () => store.restoreEntry(gone) } })
   }
 
@@ -119,6 +160,26 @@ export default function EntryForm({ book, type: initialType, entry, onClose }: {
               onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); (e.target as HTMLInputElement).blur() } }} />
           ) : <button type="button" onClick={() => setAdding(true)}>+ tag</button>}
         </div>
+        <div className="bills">
+          <span className="lbl"><Icon name="clip" /> Bill photos ({atts.length}/{MAX_BILLS})</span>
+          <div className="thumbs">
+            {atts.map((a, i) => <BillThumb key={a.path} att={a} onOpen={() => setViewAt(i)} onRemove={() => dropPhoto(a.path)} />)}
+            {atts.length < MAX_BILLS && (
+              <>
+                <label className={`addb ${photoBusy ? 'busy' : ''}`}>
+                  <Icon name="camera" />{photoBusy ? 'Saving…' : 'Camera'}
+                  <input type="file" accept="image/*" capture="environment" onChange={e => { pickPhotos(e.target.files); e.target.value = '' }} />
+                </label>
+                <label className={`addb ${photoBusy ? 'busy' : ''}`}>
+                  <Icon name="image" />Gallery
+                  <input type="file" accept="image/*" multiple onChange={e => { pickPhotos(e.target.files); e.target.value = '' }} />
+                </label>
+              </>
+            )}
+          </div>
+        </div>
+        {viewAt !== null && <BillViewer list={atts} start={viewAt} onClose={() => setViewAt(null)} />}
+
         <div className="tags">
           {MODES.map(m => <button type="button" key={m.k} className={mode === m.k ? 'on' : ''} onClick={() => setMode(mode === m.k ? null : m.k)}>{m.label}</button>)}
         </div>
